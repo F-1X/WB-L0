@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  nats-streaming:
+    image: nats-streaming:latest
+    ports: 
+      - "4222:4222"
+      - "8222:8222"
+    command: [
+      "--cluster_id=hello",
+      "--max_subs=0",
+      "--dir=store"
+      ]
+    restart: always
+
+  postgres:
+    image: postgres:alpine
+    container_name: postgres_container
+    restart: always
+    environment:
+      POSTGRES_USER: '${DB_USER}'
+      POSTGRES_PASSWORD: '${DB_PASSWORD}'
+      POSTGRES_DB: '${DB_NAME}'
+    ports:
+      - "5432:5432"
+
+  adminer:
+    image: adminer
+    ports:
+      - "8881:8080"

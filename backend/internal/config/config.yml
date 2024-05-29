@@ -1,0 +1,48 @@
+publisher_service:
+  addr: ":4222"
+  publisher:
+    clusterID: "hello"
+    clientID:  "pub-client"
+    subject: "orders"
+order_service:
+  addr: ":4222"
+  publisher:
+    clusterID: "hello"
+    clientID:  "pub-client"
+    subject: "orders"
+  subscriber:
+    clusterID: "hello"
+    clientID:  "sub-client"
+    subject: "orders"
+    options:
+      startOpt:
+        name: "StartWithLastReceived"
+        value: ""
+      subject: "request.subject"
+      queue_group: "Queue"
+      durable_name: "orders"
+      set_manual_ack_mode: true
+      ack_wait: "60s"
+      start_seq: 0
+      deliver_all: true
+      deliver_last: false
+      start_delta: ""
+      new_only: false
+
+http_server:
+  address: "localhost:8888"
+  timeout: 4s
+  idle_timeout: 120s
+
+database:
+  URL: "postgres://user:example@localhost:5432/orderdb"
+
+frontendPath: "./frontend/static"
+
+cache_config:
+  expiration:     100s
+  interval_gc:     101s
+  max_items:       1000
+  max_item_size:    2048
+  max_cache_size:   2048
+  max_key_size:     2048
