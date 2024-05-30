@@ -21,7 +21,7 @@ func NewRouter(orderService app.OrderService, stan stan.Conn, frontendPath strin
 	}
 
 	router.Mux.Handle("GET /", http.FileServer(http.Dir(frontendPath)))
-	router.Mux.HandleFunc("POST /order", router.orderHandler)
+	router.Mux.HandleFunc("GET /order", router.orderHandler)
 
 	return router
 }

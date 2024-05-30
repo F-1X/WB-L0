@@ -9,7 +9,6 @@ import (
 	"wb/backend/internal/domain/repository"
 )
 
-// TODO:  добавить ограничения количества ключей, размеру кеша(?)
 type cache struct {
 	expiration time.Duration // дефолтное значение для хранения ключа
 	intervalGC time.Duration // время афк перед обновлением гц
@@ -47,7 +46,6 @@ func (c *cache) GetOrder(key string) (entity.Order, error) {
 
 	item := value.(Item)
 	if time.Now().UnixNano() > item.Expiration {
-		log.Println(time.Now().UnixNano(), item.Expiration)
 		c.Delete(key)
 		return entity.Order{}, ErrExpired
 	}
@@ -79,7 +77,7 @@ func (c *cache) SetOrder(order entity.Order, duration time.Duration) {
 
 	c.memory.Store(order.OrderUID, item)
 
-	log.Println("save in cache:", order.OrderUID, item)
+	log.Println("save in cache:", order.OrderUID)
 }
 
 func (c *cache) UpdateOrder(orderUID string, item Item) error {
@@ -111,7 +109,7 @@ func (c *cache) cleanUp() {
 	c.memory.Range(func(k, v interface{}) bool {
 		item := v.(Item)
 		if time.Now().UnixNano() > item.Expiration && item.Expiration > 0 {
-			log.Println("GC delete key:", k.(string), time.Now().UnixNano(), item.Expiration)
+			log.Println("GC delete key:", k.(string))
 			c.memory.Delete(k)
 		}
 		return true

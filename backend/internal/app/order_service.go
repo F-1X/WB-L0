@@ -31,7 +31,7 @@ func NewOrderService(repo repository.OrderDB, cache repository.OrderCache, stan 
 // HandleHTTPReq - подписка на запросы от HHTP
 func (os *OrderService) HandleHTTPReq() {
 
-	_, err := os.stan.NatsConn().Subscribe("request_http.subject", func(msg *nats.Msg) {
+	_, err := os.stan.NatsConn().Subscribe("request", func(msg *nats.Msg) {
 		
 		id := string(msg.Data)
 		log.Println("Received ID:", id)

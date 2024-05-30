@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 	"wb/backend/internal/app"
 	"wb/backend/internal/cache"
@@ -20,10 +23,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	ctx1 := context.Background()
 
-	ctx := context.Context(context.TODO())
+	ctx2, cancel := context.WithTimeout(ctx1, time.Duration(time.Second*1))
+	defer cancel()
+
 	// REPO
-	postgresClient, err := database.NewPostgresClient(ctx, cfg.Database.URL)
+	postgresClient, err := database.NewPostgresClient(ctx2, cfg.Database.URL)
 	if err != nil {
 		log.Fatal("failed to connect to postgres, err:", err)
 	}
@@ -34,11 +40,13 @@ func main() {
 
 	// CACHE
 	cacheRepository := cache.New(cfg.CacheConfig)
-	warmData, err := orderRepo.GetOrdersWithLimitByOrder(ctx, 100, "", "") // 100 азписей отсортировных по времени создания (дефолт)
+	ctx3, cancel := context.WithTimeout(ctx1, time.Duration(time.Second*3))
+	defer cancel()
+	warmData, err := orderRepo.GetOrdersWithLimitByOrder(ctx3, 100, "", "") // 100 записей отсортировных по времени создания (дефолт)
 	if err != nil {
 		log.Println("failed to warm cache, continue")
 	} else {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*2))
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*1))
 		defer cancel()
 
 		cacheRepository.WarmingCache(ctx, warmData)
@@ -61,6 +69,27 @@ func main() {
 	// HTTP
 	router := server.NewRouter(*orderService, client, cfg.FrontendPath)
 	server := server.NewServer(&router.Mux, cfg.HTTPServer)
-	server.Run()
+	go server.Run()
 
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	<-quit
+	log.Println("[!] Graceful shutdown initiated")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	postgresClient.Close()
+
+	if err := client.Close(); err != nil {
+		log.Println("failed to close stan client, err:", err)
+	}
+
+	log.Println("Server exiting")
 }

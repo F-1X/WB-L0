@@ -346,7 +346,7 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 			paymentQuery := `
 			SELECT transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, goods_total, custom_fee
 			FROM payment
-			WHERE order_uid=$1
+			WHERE transaction=$1
 		`
 			paymentRow := db.conn.QueryRow(ctx, paymentQuery, order.OrderUID)
 			err = paymentRow.Scan(
@@ -368,9 +368,9 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 			itemsQuery := `
 			SELECT chrt_id, track_number, price, rid, name, sale, size, total_price, nm_id, brand, status
 			FROM items
-			WHERE order_uid=$1
+			WHERE track_number=$1
 		`
-			itemRows, err := db.conn.Query(ctx, itemsQuery, order.OrderUID)
+			itemRows, err := db.conn.Query(ctx, itemsQuery, order.TrackNumber)
 			if err != nil {
 				resultChan <- resultStruct{orders: nil, err:  fmt.Errorf("failed to get items: %w", err)}
 			}
@@ -411,13 +411,15 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 
 		rows.Close()
 
+		resultChan <- resultStruct{orders: orders, err: nil}
 	}()
 
 	select {
 	case <-ctx.Done():
+		log.Println("context bitch")
 		return nil, ctx.Err()
-
 	case result := <-resultChan:
+		log.Println("ERR",result.err)
 		return result.orders, result.err
 
 	}

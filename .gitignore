@@ -4,4 +4,4 @@ wrk.nocache
 wrk
 bin
 main
-/wrk/
+wrk/

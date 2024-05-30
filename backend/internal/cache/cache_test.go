@@ -11,56 +11,92 @@ import (
 	"github.com/go-playground/assert"
 )
 
+// проверка время жизни ключа заданному по SetOrder
+func TestGetOrder(t *testing.T) {
+	cfg := config.CacheConfig{
+		Expiration: time.Second * 1,
+		IntervalGC: time.Second * 1,
+	}
+
+	c := cache.New(cfg)
+	order := entity.Order{OrderUID: "order-1"}
+	c.SetOrder(order, time.Duration(time.Millisecond))
+
+	time.Sleep(time.Millisecond * 1)
+
+	result, err := c.GetOrder(order.OrderUID)
+
+	assert.Equal(t, cache.ErrExpired, err)
+	assert.Equal(t, entity.Order{}, result)
+}
+
+// конкурентный доступ к кешу (order1 только чтение, order2 только запись, order3 чтение и запись)
 func TestConcurrentSetGetCache(t *testing.T) {
 	cfg := config.CacheConfig{
-		Expiration:   time.Second * 60,
-		IntervalGC:   time.Second * 60,
-		MaxItems:     1000,
-		MaxItemSize:  1024 * 1024,     // 1MB
-		MaxCacheSize: 1 * 1024 * 1024, // 1MB
-		MaxKeySize:   500,             // 500 bytes
+		Expiration: time.Second * 60,
+		IntervalGC: time.Second * 60,
 	}
 
 	cache := cache.New(cfg)
-	order := entity.Order{
+	order1 := entity.Order{
 		OrderUID: "order-1",
 	}
 
-	cache.SetOrder(order, time.Minute)
+	cache.SetOrder(order1, time.Minute)
 
 	var wg sync.WaitGroup
-	numRoutines := 10
 
 	readFromCache := func() {
 		defer wg.Done()
-
 		for i := 0; i < 100; i++ {
-			_, err := cache.GetOrder("order-1")
-			if err != nil {
-				t.Errorf("Failed to get order from cache: %v", err)
-				return
-			}
+			result, err := cache.GetOrder("order-1")
+			assert.Equal(t, nil, err)
+			assert.Equal(t, order1, result)
 		}
 	}
 
-	newOrder := entity.Order{
+	order2 := entity.Order{
 		OrderUID: "order-2",
 	}
 	writeToCache := func() {
 		defer wg.Done()
-
 		for i := 0; i < 100; i++ {
-
-			cache.SetOrder(newOrder, time.Minute)
-
+			cache.SetOrder(order2, time.Minute)
 		}
 	}
 
+	order3 := entity.Order{
+		OrderUID: "order-3",
+	}
+
+	readOrder3 := func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			result, err := cache.GetOrder("order-3")
+			assert.Equal(t, nil, err)
+			assert.Equal(t, order3, result)
+		}
+
+	}
+
+	writeOrder3 := func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			cache.SetOrder(order3, time.Minute)
+		}
+
+	}
+
+	numRoutines := 10
 	for i := 0; i < numRoutines; i++ {
 		wg.Add(1)
 		go readFromCache()
 		wg.Add(1)
 		go writeToCache()
+		wg.Add(1)
+		go readOrder3()
+		wg.Add(1)
+		go writeOrder3()
 	}
 
 	wg.Wait()
@@ -68,12 +104,8 @@ func TestConcurrentSetGetCache(t *testing.T) {
 
 func TestConcurrentSetCache(t *testing.T) {
 	cfg := config.CacheConfig{
-		Expiration:   200,
-		IntervalGC:   600,
-		MaxItems:     1000,
-		MaxItemSize:  1024 * 1024,     // 1MB
-		MaxCacheSize: 1 * 1024 * 1024, // 1MB
-		MaxKeySize:   500,             // 500 bytes
+		Expiration: 200,
+		IntervalGC: 600,
 	}
 
 	cache := cache.New(cfg)
@@ -105,8 +137,8 @@ func TestConcurrentSetCache(t *testing.T) {
 
 func TestConcurrentGetCache(t *testing.T) {
 	cfg := config.CacheConfig{
-		Expiration:   200, // не важно какое значение
-		IntervalGC:   600, 
+		Expiration: 200, // не важно какое значение
+		IntervalGC: 600,
 	}
 
 	cache := cache.New(cfg)
@@ -126,10 +158,8 @@ func TestConcurrentGetCache(t *testing.T) {
 
 			for i := 0; i < 100; i++ {
 				result, err := cache.GetOrder(order.OrderUID)
-				if err != nil {
-					t.Errorf("Failed to get order in cache: %v", err)
-					return
-				}
+
+				assert.Equal(t, nil, err)
 				assert.Equal(t, order, result)
 			}
 		}()
@@ -138,11 +168,11 @@ func TestConcurrentGetCache(t *testing.T) {
 	wg.Wait()
 }
 
-// Ставим ГЦ на 2 секунды а время жизни ключа на 1 секунду. Ждем 2 секунды и ГЦ должен удалить ключ.
-func TestGCInterval(t *testing.T) {
+// Время ГЦ должно быть больше время жизни ключа. Ждем пока ГЦ отработает и проверяем что ключ не найден
+func TestGCIntervalKeyNotFound(t *testing.T) {
 	cfg := config.CacheConfig{
-		Expiration: time.Second * 2, // short live
-		IntervalGC: time.Second * 1, // 2 second for GC interval
+		Expiration: time.Millisecond * 40,
+		IntervalGC: time.Millisecond * 150,
 	}
 
 	c := cache.New(cfg)
@@ -152,19 +182,20 @@ func TestGCInterval(t *testing.T) {
 
 	c.SetOrder(order, 0)
 
-	// ждем пока ГЦ отработает
-	time.Sleep(time.Second * 2)
+	// ждем пока ГЦ отработает и истечет время жизни ключа
+	time.Sleep(time.Millisecond * 150)
 
 	result, err := c.GetOrder(order.OrderUID)
 
-	assert.Equal(t, cache.ErrExpired, err)
+	assert.Equal(t, cache.ErrNotFound, err)
 	assert.Equal(t, entity.Order{}, result)
 }
 
-func TestExpirationInSetOrder(t *testing.T) {
+// Проверяем что ключ просрочен (истекло время жизни) а потом не найден.
+func TestGCNotFoundKey(t *testing.T) {
 	cfg := config.CacheConfig{
-		Expiration: 1, // по дефолту определим 1 секунду жизни
-		IntervalGC: 5, // ставим побольше тут не важно
+		Expiration: time.Second,
+		IntervalGC: time.Second,
 	}
 
 	c := cache.New(cfg)
@@ -172,14 +203,19 @@ func TestExpirationInSetOrder(t *testing.T) {
 		OrderUID: "order-1",
 	}
 
-	c.SetOrder(order, time.Duration(time.Millisecond))
+	c.SetOrder(order, time.Duration(time.Millisecond*100))
 
-	// ждем пока истечения срока жизни
-	time.Sleep(time.Millisecond)
+	time.Sleep(time.Millisecond * 100)
 
+	// сперва выведется что ключ просрочен
 	result, err := c.GetOrder(order.OrderUID)
 
-	// должно быть истечено временя жизни
 	assert.Equal(t, cache.ErrExpired, err)
+	assert.Equal(t, entity.Order{}, result)
+
+	// затем он удалится, и не будет найден.
+	result, err = c.GetOrder(order.OrderUID)
+
+	assert.Equal(t, cache.ErrNotFound, err)
 	assert.Equal(t, entity.Order{}, result)
 }
