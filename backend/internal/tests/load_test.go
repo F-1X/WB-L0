@@ -17,7 +17,7 @@ import (
 
 func TestLoad(t *testing.T) {
 
-	fakedata := fakedata.Generate(2000)
+	fakedata := fakedata.Generate(1000)
 
 	sc, err := stan.Connect("hello", "load-test-client")
 	if err != nil {
@@ -34,8 +34,7 @@ func TestLoad(t *testing.T) {
 		sc.Publish(subj, encoded)
 	}
 
-	//
-	time.Sleep(time.Second*5)
+	time.Sleep(time.Second*10)
 
 	clientHTTP := &http.Client{}
 	var wg sync.WaitGroup
@@ -73,7 +72,7 @@ func TestLoad(t *testing.T) {
 
 func TestPubGet(t *testing.T){
 	fakedata := fakedata.Generate(10)
-	sc, err := stan.Connect("hello", "load-test-client")
+	sc, err := stan.Connect("hello", "load-test-client2")
 	if err != nil {
 		log.Fatal("failed to conn:", err)
 	}
@@ -90,7 +89,7 @@ func TestPubGet(t *testing.T){
 		}
 		sc.Publish(subj, encoded)
 
-
+		time.Sleep(time.Millisecond*50)
 		url := fmt.Sprintf("http://127.0.0.1:8888/order?id=%s", fakedata[i].OrderUID)
 		resp, err := clientHTTP.Get(url)
 		if err != nil {

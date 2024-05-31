@@ -47,9 +47,9 @@ func asyncPublish(data [][]byte) {
 	timestart := time.Now()
 	for i := 0; i < 1000; i++ {
 		sc.PublishAsync("orders", data[i], ackHandler)
-		log.Println("published:", iterator)
+		log.Println("published:", data[i])
 		iterator++
-		// time.Sleep(time.Millisecond*1000)
+		time.Sleep(time.Millisecond*1000)
 	}
 
 	fmt.Println(time.Since(timestart))

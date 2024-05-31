@@ -63,6 +63,9 @@ kill-containers:
 run-test:
 	go test -v ./backend/internal/tests/
 
+run-test-load:
+	go test -v ./backend/internal/tests/load_test.go
+
 test.coverage:
 	go test --short -coverprofile=cover.out -v ./...
 	go tool cover -func=cover.out

@@ -1,4 +1,4 @@
-package app
+package services
 
 import (
 	"context"
@@ -30,9 +30,9 @@ func NewOrderService(repo repository.OrderDB, cache repository.OrderCache, stan 
 
 // HandleHTTPReq - подписка на запросы от HHTP
 func (os *OrderService) HandleHTTPReq() {
-
 	_, err := os.stan.NatsConn().Subscribe("request", func(msg *nats.Msg) {
 		id := string(msg.Data)
+
 		data, err := os.cache.GetOrder(id)
 		if err == nil {
 			orderData, _ := json.Marshal(data)
@@ -41,17 +41,17 @@ func (os *OrderService) HandleHTTPReq() {
 			}
 			return
 		}
+		
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		data, err = os.repo.GetOrder(ctx, id)
 		if err == nil {
 			orderData, _ := json.Marshal(data)
-			log.Println("Answer", orderData)
 			if err := msg.Respond(orderData); err != nil {
 				log.Println("err", err)
 			}
 			return
-		} 
+		}
 
 		errorResponse := []byte(fmt.Sprintf(`{"error":"%s"}`, err))
 		if err := msg.Respond(errorResponse); err != nil {
@@ -67,8 +67,9 @@ func (os *OrderService) HandleHTTPReq() {
 
 // HandleNATSStreaming - подписка на стрим от источника заказов (пополнение в базу, новые заказы)
 func (os *OrderService) HandleNATSStreaming() {
+	validate := validator.New()
 	_, err := os.stan.Subscribe("orders", func(msg *stan.Msg) {
-		validate := validator.New()
+		
 		var order entity.Order
 
 		err := json.Unmarshal(msg.Data, &order)
@@ -76,6 +77,7 @@ func (os *OrderService) HandleNATSStreaming() {
 			log.Println(err)
 			return
 		}
+		log.Println("received order:", order.OrderUID)
 
 		if err := validate.Struct(order); err != nil {
 			log.Println("Invalid order received:", err)
@@ -97,4 +99,3 @@ func (os *OrderService) HandleNATSStreaming() {
 	}
 
 }
-

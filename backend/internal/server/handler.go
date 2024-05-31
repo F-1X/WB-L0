@@ -13,7 +13,6 @@ func (h *Handler) OrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	id := r.FormValue("id")
-	log.Printf("Received request: %s %s %s", r.Method, r.URL.Path, id)
 	if id == "" {
 		http.Error(w, "ID is required", http.StatusBadRequest)
 		return
@@ -23,7 +22,6 @@ func (h *Handler) OrderHandler(w http.ResponseWriter, r *http.Request) {
 	replySubj := h.stan.NatsConn().NewInbox()
 	sub, err := h.stan.NatsConn().Subscribe(replySubj, func(msg *nats.Msg) {
 		respChan <- msg
-		
 	})
 
 	if err != nil {
@@ -40,17 +38,12 @@ func (h *Handler) OrderHandler(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case msg := <-respChan:
-
 		log.Println("total time request", time.Since(start))
-		log.Println("for order:", id, msg.Data)
-
-		if msg == nil {
-			http.Error(w, "timeout exceeded", http.StatusGatewayTimeout)
-			return
-		}
+	
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(msg.Data)
 	case <-time.After(5 * time.Second):
-		respChan <- nil
+		http.Error(w, "timeout exceeded", http.StatusGatewayTimeout)
+		return
 	}
 }

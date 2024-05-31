@@ -4,12 +4,12 @@ import (
 	"context"
 	"os"
 	"testing"
-	"wb/backend/internal/app"
 	"wb/backend/internal/cache"
 	"wb/backend/internal/config"
 	"wb/backend/internal/database"
 	"wb/backend/internal/domain/repository"
 	"wb/backend/internal/server"
+	"wb/backend/internal/services"
 	"wb/backend/internal/stanClient"
 
 	"github.com/nats-io/nats.go"
@@ -29,14 +29,12 @@ type APITestSuite struct {
 	Server *server.Server
 	db     database.PostgresDB
 
-	OrderService *app.OrderService
+	OrderService *services.OrderService
 	repoDB       repository.OrderDB
 	repoCache    repository.OrderCache
 	stanClient   *stanClient.StanClient
 	handler      *server.Handler
-
 }
-
 
 func TestAPISuite(t *testing.T) {
 	if testing.Short() {
@@ -83,8 +81,8 @@ func (s *APITestSuite) TearDownSuite() {
 }
 
 func (s *APITestSuite) initOrderService() {
-
-	OrderService := app.NewOrderService(
+	
+	OrderService := services.NewOrderService(
 		s.repoDB,
 		s.repoCache,
 		s.stanClient,
