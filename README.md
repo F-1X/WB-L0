@@ -1,3 +1,6 @@
+
+![Снимок экрана от 2024-05-24 21-14-13](https://github.com/F-1X/WB-L0/assets/73891028/1bc8a8a5-aa0a-4417-b121-ff552d84974b)
+
 # Order Service
 
 Order Service is a backend service for managing orders, utilizing PostgreSQL for database storage, in-memory caching, and NATS Streaming for message processing.
