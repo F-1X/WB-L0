@@ -1,5 +1,5 @@
+<img src="https://github.com/F-1X/WB-L0/assets/73891028/1bc8a8a5-aa0a-4417-b121-ff552d84974b" alt="scheme" width="75%">
 
-![Снимок экрана от 2024-05-24 21-14-13](https://github.com/F-1X/WB-L0/assets/73891028/1bc8a8a5-aa0a-4417-b121-ff552d84974b)
 
 # Order Service
 
