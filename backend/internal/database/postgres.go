@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -21,10 +23,20 @@ type PostgresClientWrapper struct {
 }
 
 func NewPostgresClient(ctx context.Context, connString string) (PostgresDB, error) {
-	pool, err := initPostgresClient(ctx, connString)
+	
+	ctx2, cancel2 := context.WithTimeout(ctx, time.Duration(time.Second*1))
+	defer cancel2()
+
+	pool, err := initPostgresClient(ctx2, connString)
 	if err != nil {
 		return nil, err
 	}
+
+	go func() {
+		<-ctx.Done()
+		log.Println("[!] postgres shutdown")
+		pool.Close()
+	}()
 
 	return &PostgresClientWrapper{pool: pool}, nil
 }

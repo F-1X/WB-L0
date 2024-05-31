@@ -1,6 +1,7 @@
 package cache_test
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ func TestGetOrder(t *testing.T) {
 		IntervalGC: time.Second * 1,
 	}
 
-	c := cache.New(cfg)
+	c := cache.New(context.Background(), cfg)
 	order := entity.Order{OrderUID: "order-1"}
 	c.SetOrder(order, time.Duration(time.Millisecond))
 
@@ -37,7 +38,7 @@ func TestConcurrentSetGetCache(t *testing.T) {
 		IntervalGC: time.Second * 60,
 	}
 
-	cache := cache.New(cfg)
+	cache := cache.New(context.Background(), cfg)
 	order1 := entity.Order{
 		OrderUID: "order-1",
 	}
@@ -108,7 +109,7 @@ func TestConcurrentSetCache(t *testing.T) {
 		IntervalGC: 600,
 	}
 
-	cache := cache.New(cfg)
+	cache := cache.New(context.Background(), cfg)
 	order := entity.Order{
 		OrderUID: "order-1",
 	}
@@ -141,7 +142,7 @@ func TestConcurrentGetCache(t *testing.T) {
 		IntervalGC: 600,
 	}
 
-	cache := cache.New(cfg)
+	cache := cache.New(context.Background(), cfg)
 	order := entity.Order{
 		OrderUID: "order-1",
 	}
@@ -175,7 +176,7 @@ func TestGCIntervalKeyNotFound(t *testing.T) {
 		IntervalGC: time.Millisecond * 150,
 	}
 
-	c := cache.New(cfg)
+	c := cache.New(context.Background(), cfg)
 	order := entity.Order{
 		OrderUID: "order-1",
 	}
@@ -198,7 +199,7 @@ func TestGCNotFoundKey(t *testing.T) {
 		IntervalGC: time.Second,
 	}
 
-	c := cache.New(cfg)
+	c := cache.New(context.Background(), cfg)
 	order := entity.Order{
 		OrderUID: "order-1",
 	}

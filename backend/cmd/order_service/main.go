@@ -19,46 +19,46 @@ import (
 )
 
 func main() {
+	defer log.Println("[!] Application shutdown")
+
 	cfg, err := config.Read()
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx1 := context.Background()
-
-	ctx2, cancel := context.WithTimeout(ctx1, time.Duration(time.Second*1))
-	defer cancel()
+	ctx1, cancel := context.WithCancel(context.Background())
+	go grace(cancel)
 
 	// REPO
-	postgresClient, err := database.NewPostgresClient(ctx2, cfg.Database.URL)
+	postgresClient, err := database.NewPostgresClient(ctx1, cfg.Database.URL)
 	if err != nil {
-		log.Fatal("failed to connect to postgres, err:", err)
+		log.Fatal("[-] failed to connect to postgres, err:", err)
 	}
-	orderRepo, err := database.NewPostgesRepository(postgresClient)
+	orderRepo, err := database.NewPostgesRepository(ctx1, postgresClient)
 	if err != nil {
-		log.Fatal("failed to create postgres repository, err:", err)
+		log.Fatal("[-] failed to create postgres repository, err:", err)
 	}
 
 	// CACHE
-	cacheRepository := cache.New(cfg.CacheConfig)
-	ctx3, cancel := context.WithTimeout(ctx1, time.Duration(time.Second*3))
-	defer cancel()
-	warmData, err := orderRepo.GetOrdersWithLimitByOrder(ctx3, 100, "", "") // 100 записей отсортировных по времени создания (дефолт)
+	cacheRepository := cache.New(ctx1, cfg.CacheConfig)
+	ctx2, cancel2 := context.WithTimeout(ctx1, time.Duration(time.Second*5))
+	defer cancel2()
+	warmData, err := orderRepo.GetOrdersWithLimitByOrder(ctx2, 100, "", "") // 100 записей отсортировных по времени создания (дефолт)
 	if err != nil {
-		log.Println("failed to warm cache, continue")
+		log.Println("[-] failed to warm cache, reason:", err)
 	} else {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*1))
+		ctx, cancel := context.WithTimeout(ctx1, time.Duration(time.Second*1))
 		defer cancel()
 
 		cacheRepository.WarmingCache(ctx, warmData)
 
-		log.Println("cacheRepository successfully warmed")
+		log.Println("[+] Cache successfully warmed")
 	}
 
 	// STAN
 	natsOpts := []nats.Option{nats.PingInterval(5 * time.Minute), nats.MaxPingsOutstanding(10), nats.MaxReconnects(100)}
 	stanOpts := []stan.Option{}
 
-	client := stanClient.New(cfg.OrderService.Addr, natsOpts, cfg.OrderService.Subscriber.ClusterID, cfg.OrderService.Subscriber.ClientID, stanOpts)
+	client := stanClient.New(ctx1, cfg.OrderService.Addr, natsOpts, cfg.OrderService.Subscriber.ClusterID, cfg.OrderService.Subscriber.ClientID, stanOpts)
 	defer client.Close()
 
 	// SERVICE
@@ -67,29 +67,20 @@ func main() {
 	go orderService.HandleNATSStreaming()
 
 	// HTTP
-	router := server.NewRouter(*orderService, client, cfg.FrontendPath)
+	router := server.NewHandler(orderService, client, cfg.FrontendPath)
 	server := server.NewServer(&router.Mux, cfg.HTTPServer)
-	go server.Run()
 
-	// Graceful shutdown
+	go server.Run(ctx1)
+
+	<-ctx1.Done()
+	
+}
+
+func grace(c context.CancelFunc) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	<-quit
-	log.Println("[!] Graceful shutdown initiated")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
-	}
-
-	postgresClient.Close()
-
-	if err := client.Close(); err != nil {
-		log.Println("failed to close stan client, err:", err)
-	}
-
-	log.Println("Server exiting")
+	log.Println("[*] QUIT signal received")
+	c()
 }

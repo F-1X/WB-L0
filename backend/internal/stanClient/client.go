@@ -1,6 +1,7 @@
 package stanClient
 
 import (
+	"context"
 	"log"
 
 	"github.com/nats-io/nats.go"
@@ -11,9 +12,9 @@ type StanClient struct {
 	sc stan.Conn
 }
 
-func New(url string, natsOpts []nats.Option, stanClusterID string, clientID string, stanOpts []stan.Option) *StanClient {
+func New(ctx context.Context, url string, natsOpts []nats.Option, stanClusterID string, clientID string, stanOpts []stan.Option) *StanClient {
 
-	nc, err := nats.Connect(url,  natsOpts...)
+	nc, err := nats.Connect(url, natsOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,8 +28,14 @@ func New(url string, natsOpts []nats.Option, stanClusterID string, clientID stri
 	if err != nil {
 		log.Fatalf("Can't connect: %v.\nMake sure a NATS Streaming Server is running at: %s", err, url)
 	}
-	
+
 	log.Println("[+] Succussfully connected to stan server")
+
+	go func(){
+		<-ctx.Done()
+		log.Println("[!] stan gracefully shutdown")
+		sc.Close()
+	}()
 	return &StanClient{sc: sc}
 }
 

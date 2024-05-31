@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"log"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ type cache struct {
 	expiration time.Duration // дефолтное значение для хранения ключа
 	intervalGC time.Duration // время афк перед обновлением гц
 	memory     sync.Map
+	cancelGC   context.CancelFunc
 }
 
 type Item struct {
@@ -21,7 +23,7 @@ type Item struct {
 	Duration   time.Duration // доп. время хранения ключа. нужно для обновления время жизни
 }
 
-func New(cfg config.CacheConfig) repository.OrderCache {
+func New(ctx context.Context, cfg config.CacheConfig) repository.OrderCache {
 	if cfg.Expiration == 0 {
 		cfg.Expiration = time.Minute
 	}
@@ -32,8 +34,17 @@ func New(cfg config.CacheConfig) repository.OrderCache {
 	}
 
 	if cfg.IntervalGC > 0 {
-		cache.GC()
+		go cache.GC()
 	}
+
+	go func() {
+		<-ctx.Done()
+		if cache.cancelGC != nil { // если GC не был запущен
+			cache.cancelGC()
+		}
+
+		log.Println("[!] cache shutdown")
+	}()
 
 	return &cache
 }
@@ -77,7 +88,6 @@ func (c *cache) SetOrder(order entity.Order, duration time.Duration) {
 
 	c.memory.Store(order.OrderUID, item)
 
-	log.Println("save in cache:", order.OrderUID)
 }
 
 func (c *cache) UpdateOrder(orderUID string, item Item) error {
@@ -95,12 +105,20 @@ func (c *cache) Delete(key string) error {
 }
 
 func (c *cache) GC() {
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancelGC = cancel
 	go func() {
+		ticker := time.NewTicker(c.intervalGC)
+		defer ticker.Stop()
 		for {
-			time.Sleep(c.intervalGC)
-
-			log.Println("GC started")
-			c.cleanUp()
+			select {
+			case <-ctx.Done():
+				log.Println("GC stopped")
+				return
+			case <-ticker.C:
+				log.Println("GC started")
+				c.cleanUp()
+			}
 		}
 	}()
 }
@@ -114,4 +132,31 @@ func (c *cache) cleanUp() {
 		}
 		return true
 	})
+}
+
+// WarmingCache - прогрев кеша
+func (c *cache) WarmingCache(ctx context.Context, rows []entity.Order) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		for _, row := range rows {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				c.SetOrder(row, 0)
+			}
+		}
+
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-done:
+		return
+	}
+
 }

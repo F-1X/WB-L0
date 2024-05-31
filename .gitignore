@@ -5,3 +5,4 @@ wrk
 bin
 main
 wrk/
+!wrk.tesult

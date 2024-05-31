@@ -40,9 +40,5 @@ database:
 frontendPath: "./frontend/static"
 
 cache_config:
-  expiration:     100s
-  interval_gc:     101s
-  max_items:       1000
-  max_item_size:    2048
-  max_cache_size:   2048
-  max_key_size:     2048
+  expiration:      100s
+  interval_gc:     100s

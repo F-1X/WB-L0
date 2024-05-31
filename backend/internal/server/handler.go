@@ -1,36 +1,56 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"time"
+
+	"github.com/nats-io/nats.go"
 )
 
-func (router *Router) orderHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) OrderHandler(w http.ResponseWriter, r *http.Request) {
+
+	start := time.Now()
+
 	id := r.FormValue("id")
+	log.Printf("Received request: %s %s %s", r.Method, r.URL.Path, id)
 	if id == "" {
 		http.Error(w, "ID is required", http.StatusBadRequest)
 		return
 	}
+	respChan := make(chan *nats.Msg, 1)
 
-	replySubj := router.stan.NatsConn().NewInbox()
-	sub, err := router.stan.NatsConn().SubscribeSync(replySubj)
+	replySubj := h.stan.NatsConn().NewInbox()
+	sub, err := h.stan.NatsConn().Subscribe(replySubj, func(msg *nats.Msg) {
+		respChan <- msg
+		
+	})
+
 	if err != nil {
 		http.Error(w, "failed to subscribe subject", http.StatusInternalServerError)
 		return
 	}
 	defer sub.Unsubscribe()
 
-	err = router.stan.NatsConn().PublishRequest("request", replySubj, []byte(id))
+	err = h.stan.NatsConn().PublishRequest("request", replySubj, []byte(id))
 	if err != nil {
 		http.Error(w, "failed to publish request", http.StatusInternalServerError)
 		return
 	}
-	msg, err := sub.NextMsg(5 * time.Second)
-	if err != nil {
-		http.Error(w, "timeout exceeded", http.StatusGatewayTimeout)
-		return
-	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(msg.Data)
+	select {
+	case msg := <-respChan:
+
+		log.Println("total time request", time.Since(start))
+		log.Println("for order:", id, msg.Data)
+
+		if msg == nil {
+			http.Error(w, "timeout exceeded", http.StatusGatewayTimeout)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(msg.Data)
+	case <-time.After(5 * time.Second):
+		respChan <- nil
+	}
 }

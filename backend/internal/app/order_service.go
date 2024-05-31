@@ -32,39 +32,32 @@ func NewOrderService(repo repository.OrderDB, cache repository.OrderCache, stan 
 func (os *OrderService) HandleHTTPReq() {
 
 	_, err := os.stan.NatsConn().Subscribe("request", func(msg *nats.Msg) {
-		
 		id := string(msg.Data)
-		log.Println("Received ID:", id)
-
 		data, err := os.cache.GetOrder(id)
 		if err == nil {
 			orderData, _ := json.Marshal(data)
 			if err := msg.Respond(orderData); err != nil {
 				log.Println("err", err)
 			}
-			log.Println("get order from cache:", data.OrderUID)
 			return
-		} else {
-			log.Println("er", err)
 		}
-
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-
 		data, err = os.repo.GetOrder(ctx, id)
 		if err == nil {
 			orderData, _ := json.Marshal(data)
+			log.Println("Answer", orderData)
 			if err := msg.Respond(orderData); err != nil {
 				log.Println("err", err)
 			}
-			go os.cache.SetOrder(data, 0)
 			return
-		}
+		} 
 
 		errorResponse := []byte(fmt.Sprintf(`{"error":"%s"}`, err))
 		if err := msg.Respond(errorResponse); err != nil {
 			log.Println("err", err)
 		}
+
 	})
 
 	if err != nil {
@@ -74,11 +67,10 @@ func (os *OrderService) HandleHTTPReq() {
 
 // HandleNATSStreaming - подписка на стрим от источника заказов (пополнение в базу, новые заказы)
 func (os *OrderService) HandleNATSStreaming() {
-	validate := validator.New()
-
 	_, err := os.stan.Subscribe("orders", func(msg *stan.Msg) {
-		log.Println(string(msg.Data))
+		validate := validator.New()
 		var order entity.Order
+
 		err := json.Unmarshal(msg.Data, &order)
 		if err != nil {
 			log.Println(err)
@@ -90,16 +82,12 @@ func (os *OrderService) HandleNATSStreaming() {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		os.cache.SetOrder(order, 0)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 		defer cancel()
-
-		go os.cache.SetOrder(order, 0)
-
 		if err := os.repo.InsertOrder(ctx, order); err != nil {
-			log.Println("failed to insert order, reason:", err)
+			log.Println("failed to insert order,", order.OrderUID, " reason:", err)
 		}
-
-		log.Println("handled order:", order.OrderUID, msg.Subject)
 
 	}, stan.StartWithLastReceived(), stan.DurableName("durable-subscription"))
 	// опции -> начала получения с последнего принятого сообщения и длительная подписка
@@ -109,3 +97,4 @@ func (os *OrderService) HandleNATSStreaming() {
 	}
 
 }
+

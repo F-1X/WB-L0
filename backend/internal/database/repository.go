@@ -15,8 +15,13 @@ type DB struct {
 	conn PostgresDB
 }
 
-func NewPostgesRepository(conn PostgresDB) (repository.OrderDB, error) {
-	return DB{conn: conn}, nil
+func NewPostgesRepository(ctx context.Context, conn PostgresDB) (repository.OrderDB, error) {
+	db := DB{conn: conn}
+	go func() {
+		<-ctx.Done()
+		log.Println("[!] order repo shutdown")
+	}()
+	return db, nil
 }
 
 // GetOrder - достает заказ из базы
@@ -189,7 +194,7 @@ func (db DB) InsertOrder(ctx context.Context, order entity.Order) error {
 			order.OofShard,
 		)
 		if err != nil {
-			resultChan <- fmt.Errorf("failed to insert into orders: %w", err)
+			resultChan <- fmt.Errorf("failed to insert into orders: %w %s", err, order.OrderUID)
 		}
 
 		deliveryQuery := `
@@ -268,6 +273,7 @@ func (db DB) InsertOrder(ctx context.Context, order entity.Order) error {
 	case err := <-resultChan:
 		return err
 	case <-ctx.Done():
+		log.Println("CONTEXT REPO END",ctx.Err())
 		return ctx.Err()
 	}
 }
@@ -276,7 +282,7 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 
 	type resultStruct struct {
 		orders []entity.Order
-		err   error
+		err    error
 	}
 	resultChan := make(chan resultStruct)
 
@@ -299,7 +305,7 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 		rows, err := db.conn.Query(ctx, query, limit)
 		if err != nil {
 			log.Println("failed in query, err:", err)
-			resultChan <- resultStruct{orders: nil, err:  fmt.Errorf("failed to query statement: %w", err)}
+			resultChan <- resultStruct{orders: nil, err: fmt.Errorf("failed to query statement: %w", err)}
 		}
 		defer rows.Close()
 		var orders []entity.Order
@@ -320,7 +326,7 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 			)
 			if err != nil {
 				log.Println("failed to scan order, err:", err)
-				resultChan <- resultStruct{orders: nil, err:  fmt.Errorf("failed to scan order: %w", err)}
+				resultChan <- resultStruct{orders: nil, err: fmt.Errorf("failed to scan order: %w", err)}
 			}
 
 			deliveryQuery := `
@@ -362,7 +368,7 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 				&order.Payment.CustomFee,
 			)
 			if err != nil {
-				resultChan <- resultStruct{orders: nil, err:  fmt.Errorf("failed to scan payment details: %w", err)}
+				resultChan <- resultStruct{orders: nil, err: fmt.Errorf("failed to scan payment details: %w", err)}
 			}
 
 			itemsQuery := `
@@ -372,7 +378,7 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 		`
 			itemRows, err := db.conn.Query(ctx, itemsQuery, order.TrackNumber)
 			if err != nil {
-				resultChan <- resultStruct{orders: nil, err:  fmt.Errorf("failed to get items: %w", err)}
+				resultChan <- resultStruct{orders: nil, err: fmt.Errorf("failed to get items: %w", err)}
 			}
 			defer itemRows.Close()
 
@@ -393,7 +399,7 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 					&item.Status,
 				)
 				if err != nil {
-					resultChan <- resultStruct{orders: nil, err:  fmt.Errorf("failed to scan item: %w", err)}
+					resultChan <- resultStruct{orders: nil, err: fmt.Errorf("failed to scan item: %w", err)}
 				}
 				items = append(items, item)
 			}
@@ -416,11 +422,8 @@ func (db DB) GetOrdersWithLimitByOrder(ctx context.Context, limit int, order str
 
 	select {
 	case <-ctx.Done():
-		log.Println("context bitch")
 		return nil, ctx.Err()
 	case result := <-resultChan:
-		log.Println("ERR",result.err)
 		return result.orders, result.err
-
 	}
 }

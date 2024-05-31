@@ -7,21 +7,20 @@ import (
 	"github.com/nats-io/stan.go"
 )
 
-type Router struct {
+type Handler struct {
 	Mux          http.ServeMux
-	orderService app.OrderService
+	orderService *app.OrderService
 	stan         stan.Conn
 }
 
-func NewRouter(orderService app.OrderService, stan stan.Conn, frontendPath string) *Router {
-	router := &Router{
-		Mux:          *http.NewServeMux(),
+func NewHandler(orderService *app.OrderService, stan stan.Conn, frontendPath string) *Handler {
+	router := &Handler{
 		stan:         stan,
 		orderService: orderService,
 	}
 
 	router.Mux.Handle("GET /", http.FileServer(http.Dir(frontendPath)))
-	router.Mux.HandleFunc("GET /order", router.orderHandler)
+	router.Mux.HandleFunc("GET /order", router.OrderHandler)
 
 	return router
 }

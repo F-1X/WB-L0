@@ -1,0 +1,21 @@
+gleb@laptop:~/GolangProjects/WB-Prep/wrk$ ./wrk -t12 -c400 -d30s -s ./scripts/post.lua http://127.0.0.1:8888/order?id=b563feb7b2b84b6test
+Running 30s test @ http://127.0.0.1:8888/order?id=b563feb7b2b84b6test
+  12 threads and 400 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   224.73ms   35.35ms 352.12ms   73.63%
+    Req/Sec   147.15     58.63   363.00     66.70%
+  52713 requests in 30.10s, 47.46MB read
+Requests/sec:   1751.20
+Transfer/sec:      1.58MB
+
+После оптимизации SQL запросов: 
+
+gleb@laptop:~/GolangProjects/WB-Prep/wrk$ ./wrk -t12 -c400 -d30s -s ./scripts/post.lua http://127.0.0.1:8888/order?id=b563feb7b2b84b6test
+Running 30s test @ http://127.0.0.1:8888/order?id=b563feb7b2b84b6test
+  12 threads and 400 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   111.53ms   45.38ms 542.15ms   74.82%
+    Req/Sec   301.31    103.37   580.00     68.21%
+  107684 requests in 30.09s, 118.00MB read
+Requests/sec:   3579.19
+Transfer/sec:      3.92MB
