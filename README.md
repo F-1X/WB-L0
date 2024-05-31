@@ -1,7 +1,6 @@
+
+# Order Service  
 <img src="https://github.com/F-1X/WB-L0/assets/73891028/1bc8a8a5-aa0a-4417-b121-ff552d84974b" alt="scheme" width="75%">
-
-
-# Order Service
 
 Order Service is a backend service for managing orders, utilizing PostgreSQL for database storage, in-memory caching, and NATS Streaming for message processing.
 
@@ -11,9 +10,6 @@ Order Service is a backend service for managing orders, utilizing PostgreSQL for
 - [Configuration](#configuration)
 - [Running the Application](#running-the-application)
 - [Running Tests](#running-tests)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
 
 ## Installation
 
@@ -21,32 +17,47 @@ Order Service is a backend service for managing orders, utilizing PostgreSQL for
 
     ```sh
     git clone https://github.com/F-1X/WB-L0.git
-    cd order-service
+    cd WB-L0
     ```
 
 2. **Install dependencies:**
 
-    Ensure you have Go installed, then run:
-
     ```sh
     go mod tidy
     ```
+    also you need installed migate tool  
+   
+## Running the Application  
+1. **Set up PostgreSQL and NATS Streaming:**
 
-3. **Set up PostgreSQL and NATS Streaming:**
-
-    Ensure you have PostgreSQL installed and running. Create a database for the project.
+    With docker-compose starts PostgreSQL and NATS Streaming. And after migrate schema  
     ```sh
     make docker-up
     make mig-up
     ```
 
-    
-
-4. **Run an application:**
+2. **Run an application:**
 
      ```sh
     make run-server
     ```
+
+## **Running Tests**  
+1. **All tests**  
+```sh
+go-test
+```  
+
+2. **integrations** 
+```sh  
+make test.integration  
+make run-test  
+```  
+3. **"load test"**
+```sh  
+make run-test-load  
+```  
+    
 
 ## Configuration
 
@@ -65,6 +76,7 @@ CONFIG_PATH=./backend/internal/config/config.yml
 FRONTEND_PATH=./frontend/static
 TEST_DB_URI=postgres://test:test@localhost:5432/orderdb
 ```
+
 ## Databse structure of tables
 **orders**
 
@@ -128,3 +140,7 @@ TEST_DB_URI=postgres://test:test@localhost:5432/orderdb
 | nm_id        | INT            |                                                |
 | brand        | VARCHAR(100)   |                                                |
 | status       | INT            |                                                |
+
+
+
+
