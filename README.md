@@ -39,20 +39,28 @@ Order Service is a backend service for managing orders, utilizing PostgreSQL for
 
     
 
-4. **Set up NATS Streaming:**
+4. **Run an application:**
 
-    Ensure you have NATS Streaming Server installed and running.
+     ```sh
+    make run-server
+    ```
 
 ## Configuration
 
 Set the following environment variables in a `.env` file or export them directly in your terminal:
 
 ```env
-TEST_DB_URI=your_test_db_uri
-DB_URI=your_production_db_uri
-NATS_URL=127.0.0.1:4223
-NATS_CLUSTER_ID=test-cluster
-NATS_CLIENT_ID=test-client
+DB_USER=user
+DB_HOST=localhost
+DB_PORT=5432
+DB_PASSWORD=example
+DB_NAME=orderdb
+MIGRATIONS_PATH=backend/internal/database/migrate/migrations
+DATABASE_URL=postgres://user:example@localhost:5432/orderdb
+NATS_URL=nats://nats:4222
+CONFIG_PATH=./backend/internal/config/config.yml
+FRONTEND_PATH=./frontend/static
+TEST_DB_URI=postgres://test:test@localhost:5432/orderdb
 ```
 ## Databse structure of tables
 **orders**
